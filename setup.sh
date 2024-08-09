@@ -41,36 +41,28 @@ else
     echo -e "${GREEN}Nginx installed successfully.${NC}"
 fi
 
-# Step 3: Install NVM if not already installed
-if [ -d "$HOME/.nvm" ]; then
-    echo -e "${RED}NVM is already installed. Skipping NVM installation.${NC}"
+# Step 3: Install NVM for the deployer user and Node.js
+if sudo -u deployer test -d "/home/deployer/.nvm"; then
+    echo -e "${RED}NVM is already installed for deployer. Skipping NVM installation.${NC}"
 else
-    echo -e "${BLUE}Which version of NVM would you like to install? (default is latest LTS)${NC}"
-    read nvm_version
-
-    if [ -z "$nvm_version" ]; then
-        nvm_version="lts/*"
-    fi
-
-    echo -e "${BLUE}Installing NVM version $nvm_version...${NC}"
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-    export NVM_DIR="$HOME/.nvm"
-    # Load nvm into the current shell
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-    nvm install $nvm_version
-    echo -e "${GREEN}NVM installed successfully.${NC}"
+    echo -e "${BLUE}Installing NVM for deployer...${NC}"
+    sudo -u deployer -H bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
+    sudo -u deployer -H bash -c "export NVM_DIR=\"/home/deployer/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && nvm install --lts"
+    echo -e "${GREEN}NVM and Node.js installed successfully for deployer.${NC}"
 fi
 
+# Ensure NVM is loaded in the deployer user's environment
+sudo -u deployer -H bash -c "export NVM_DIR=\"/home/deployer/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\" && nvm use --lts"
+
 # Step 4: Clone the repository if not already present
-if [ -z "$project_folder" ];then
+if [ -z "$project_folder" ]; then
     echo -e "${BLUE}Please enter your GitLab repository URL:${NC}"
     read repo_url
 
     project_folder="/var/www/$(basename $repo_url .git)"
 fi
 
-if [ -d "$project_folder" ];then
+if [ -d "$project_folder" ]; then
     echo -e "${RED}Project directory already exists. Skipping git clone.${NC}"
 else
     echo -e "${BLUE}Cloning the repository...${NC}"
@@ -80,7 +72,7 @@ else
 
     git clone $repo_url
     cd $(basename $repo_url .git)
-    npm install
+    sudo -u deployer -H bash -c "cd /var/www/$(basename $repo_url .git) && npm install"
     echo -e "${GREEN}Repository cloned and npm packages installed successfully.${NC}"
 fi
 
@@ -99,7 +91,7 @@ else
 fi
 
 # Step 6: Clean up .bash_logout file
-if [ -f "/home/deployer/.bash_logout" ];then
+if [ -f "/home/deployer/.bash_logout" ]; then
     echo -e "${BLUE}Cleaning up .bash_logout to prevent environment preparation issues...${NC}"
     sudo sh -c 'echo "" > /home/deployer/.bash_logout'
     echo -e "${GREEN}.bash_logout file has been cleaned up successfully.${NC}"
@@ -132,7 +124,7 @@ sudo gitlab-runner install --user=deployer --working-directory=/home/deployer
 sudo gitlab-runner start
 
 # بررسی وضعیت سرویس
-if sudo systemctl is-active --quiet gitlab-runner;then
+if sudo systemctl is-active --quiet gitlab-runner; then
     echo -e "${GREEN}GitLab Runner is running successfully.${NC}"
 else
     echo -e "${RED}GitLab Runner failed to start. Please check the logs for more details.${NC}"
@@ -153,7 +145,7 @@ sudo gitlab-runner register --non-interactive \
   --run-untagged="true" \
   --locked="false"
 
-if [ $? -eq 0 ];then
+if [ $? -eq 0 ]; then
     echo -e "${GREEN}GitLab Runner registered successfully.${NC}"
 else
     echo -e "${RED}Failed to register GitLab Runner. Please check the provided token and try again.${NC}"
@@ -162,7 +154,7 @@ fi
 
 # بررسی مجدد وضعیت سرویس
 sudo systemctl restart gitlab-runner
-if sudo systemctl is-active --quiet gitlab-runner;then
+if sudo systemctl is-active --quiet gitlab-runner; then
     echo -e "${GREEN}GitLab Runner is running and ready to accept jobs.${NC}"
 else
     echo -e "${RED}GitLab Runner failed to start after registration. Please check the logs for more details.${NC}"
