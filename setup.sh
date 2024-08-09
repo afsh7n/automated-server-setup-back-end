@@ -63,7 +63,7 @@ else
 fi
 
 # Step 4: Clone the repository if not already present
-if [ -z "$project_folder" ]; then
+if [ -z "$project_folder" ];then
     echo -e "${BLUE}Please enter your GitLab repository URL:${NC}"
     read repo_url
 
@@ -98,7 +98,14 @@ else
     echo -e "${GREEN}User deployer created and configured successfully.${NC}"
 fi
 
-# Step 6: Install and configure GitLab Runner
+# Step 6: Fix potential .bash_logout issue
+if [ -f "/home/deployer/.bash_logout" ]; then
+    echo -e "${BLUE}Checking .bash_logout for potential issues...${NC}"
+    sudo sed -i 's/^[^#]*clear_console/#&/' /home/deployer/.bash_logout
+    echo -e "${GREEN}.bash_logout file has been updated to prevent environment preparation issues.${NC}"
+fi
+
+# Step 7: Install and configure GitLab Runner
 if command_exists gitlab-runner; then
     echo -e "${RED}GitLab Runner is already installed. Skipping installation.${NC}"
 else
