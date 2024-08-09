@@ -136,4 +136,10 @@ else
     exit 1
 fi
 
+# Step 8: Ensure deployer user owns the entire /var/www directory and has the necessary permissions
+sudo chown -R deployer:deployer /var/www
+sudo chmod -R 755 /var/www
+
+echo -e "${GREEN}Permissions have been set for /var/www and all its contents.${NC}"
+
 echo -e "${GREEN}Setup completed successfully!${NC}"
