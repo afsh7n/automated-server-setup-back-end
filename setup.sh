@@ -6,12 +6,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-# Step 1: Create deployer user if not exists (moved this step earlier)
+# Step 1: Create deployer user if not exists (this step is crucial)
 if id "deployer" &>/dev/null; then
     echo -e "${RED}User deployer already exists. Skipping user creation.${NC}"
 else
@@ -56,7 +51,7 @@ if [ -z "$project_folder" ]; then
     project_folder="/var/www/$(basename $repo_url .git)"
 fi
 
-if [ -d "$project_folder" ];then
+if [ -d "$project_folder" ]; then
     echo -e "${RED}Project directory already exists. Skipping git clone.${NC}"
 else
     echo -e "${BLUE}Cloning the repository...${NC}"
