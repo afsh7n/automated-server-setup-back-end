@@ -70,7 +70,7 @@ if [ -z "$project_folder" ];then
     project_folder="/var/www/$(basename $repo_url .git)"
 fi
 
-if [ -d "$project_folder" ]; then
+if [ -d "$project_folder" ];then
     echo -e "${RED}Project directory already exists. Skipping git clone.${NC}"
 else
     echo -e "${BLUE}Cloning the repository...${NC}"
@@ -98,11 +98,11 @@ else
     echo -e "${GREEN}User deployer created and configured successfully.${NC}"
 fi
 
-# Step 6: Fix potential .bash_logout issue
-if [ -f "/home/deployer/.bash_logout" ]; then
-    echo -e "${BLUE}Checking .bash_logout for potential issues...${NC}"
-    sudo sed -i 's/^[^#]*clear_console/#&/' /home/deployer/.bash_logout
-    echo -e "${GREEN}.bash_logout file has been updated to prevent environment preparation issues.${NC}"
+# Step 6: Clean up .bash_logout file
+if [ -f "/home/deployer/.bash_logout" ];then
+    echo -e "${BLUE}Cleaning up .bash_logout to prevent environment preparation issues...${NC}"
+    sudo sh -c 'echo "" > /home/deployer/.bash_logout'
+    echo -e "${GREEN}.bash_logout file has been cleaned up successfully.${NC}"
 fi
 
 # Step 7: Install and configure GitLab Runner
@@ -121,7 +121,7 @@ echo -e "${BLUE}Stopping GitLab Runner if it's running...${NC}"
 sudo gitlab-runner stop
 
 # اطمینان از پاک بودن فایل پیکربندی قدیمی
-if [ -f "/etc/gitlab-runner/config.toml" ]; then
+if [ -f "/etc/gitlab-runner/config.toml" ];then
     echo -e "${RED}Old config.toml file found. Backing up and removing it...${NC}"
     sudo mv /etc/gitlab-runner/config.toml /etc/gitlab-runner/config.toml.bak
 fi
@@ -132,8 +132,7 @@ sudo gitlab-runner install --user=deployer --working-directory=/home/deployer
 sudo gitlab-runner start
 
 # بررسی وضعیت سرویس
-if sudo systemctl is-active --quiet gitlab-runner
-then
+if sudo systemctl is-active --quiet gitlab-runner;then
     echo -e "${GREEN}GitLab Runner is running successfully.${NC}"
 else
     echo -e "${RED}GitLab Runner failed to start. Please check the logs for more details.${NC}"
@@ -154,7 +153,7 @@ sudo gitlab-runner register --non-interactive \
   --run-untagged="true" \
   --locked="false"
 
-if [ $? -eq 0 ]; then
+if [ $? -eq 0 ];then
     echo -e "${GREEN}GitLab Runner registered successfully.${NC}"
 else
     echo -e "${RED}Failed to register GitLab Runner. Please check the provided token and try again.${NC}"
@@ -163,8 +162,7 @@ fi
 
 # بررسی مجدد وضعیت سرویس
 sudo systemctl restart gitlab-runner
-if sudo systemctl is-active --quiet gitlab-runner
-then
+if sudo systemctl is-active --quiet gitlab-runner;then
     echo -e "${GREEN}GitLab Runner is running and ready to accept jobs.${NC}"
 else
     echo -e "${RED}GitLab Runner failed to start after registration. Please check the logs for more details.${NC}"
