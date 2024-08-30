@@ -136,13 +136,13 @@ else
     exit 1
 fi
 
-# Step 8: Ensure deployer user owns the entire /var/www directory and has the necessary permissions
+# Step 7: Ensure deployer user owns the entire /var/www directory and has the necessary permissions
 sudo chown -R deployer:deployer /var/www
 sudo chmod -R 755 /var/www
 
 echo -e "${GREEN}Permissions have been set for /var/www and all its contents.${NC}"
 
-# Step 9: Install UFW and configure firewall rules
+# Step 8: Install UFW and configure firewall rules
 echo -e "${BLUE}Installing UFW and configuring firewall...${NC}"
 sudo apt install -y ufw
 sudo ufw allow 80/tcp
@@ -151,17 +151,17 @@ sudo ufw allow 23232/tcp
 sudo ufw enable
 echo -e "${GREEN}UFW installed and configured successfully.${NC}"
 
-# Step 10: Change SSH port to 23232
+# Step 9: Change SSH port to 23232
 echo -e "${BLUE}Changing SSH port to 23232...${NC}"
 sudo sed -i 's/#Port 22/Port 23232/' /etc/ssh/sshd_config
 sudo systemctl restart ssh
 echo -e "${GREEN}SSH port changed to 23232 and service restarted.${NC}"
 
-# Step 11: Get the domain name from the user
+# Step 10: Get the domain name from the user
 echo -e "${BLUE}Please enter your domain name (e.g., example.com):${NC}"
 read domain_name
 
-# Step 12: Create SSL certificate for the domain
+# Step 11: Create SSL certificate for the domain
 echo -e "${BLUE}Creating SSL certificate for ${domain_name}...${NC}"
 sudo -u deployer bash -c "cat > /var/www/localhost.conf <<EOF
 [req]
@@ -182,94 +182,167 @@ organizationName            = Organization Name (eg, company)
 organizationName_default    = ${domain_name}
 organizationalUnitName      = organizationalunit
 organizationalUnitName_default = Development
-commonName                  = Common Name (e.g. server FQDN or YOUR name)
+commonName                  = Common Name (eg, fully qualified host name)
 commonName_default          = ${domain_name}
 commonName_max              = 64
+emailAddress                = Email Address
+emailAddress_default        = admin@${domain_name}
+emailAddress_max            = 64
 
 [req_ext]
 subjectAltName = @alt_names
 
 [v3_ca]
-subjectAltName = @alt_names
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+basicConstraints = CA:TRUE
+keyUsage = cRLSign, keyCertSign
 
 [alt_names]
-DNS.1   = ${domain_name}
-DNS.2   = localhost
-DNS.3   = 127.0.0.1
+DNS.1 = ${domain_name}
 EOF"
 
-sudo -u deployer bash -c "cd /var/www && sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ${domain_name}.key -out ${domain_name}.crt -config localhost.conf"
+sudo openssl req -new -x509 -nodes -key /var/www/${domain_name}.key -out /var/www/${domain_name}.crt -days 365 -config /var/www/localhost.conf
+echo -e "${GREEN}SSL certificate created successfully.${NC}"
 
-echo -e "${GREEN}SSL certificate created and stored in /var/www.${NC}"
-
-# Step 13: Get project type from the user (Static or Dynamic)
-echo -e "${BLUE}Is your project Static or Dynamic? (type 'static' or 'dynamic')${NC}"
-read project_type
-
-# Step 14: Based on the project type, configure Nginx
-if [ "$project_type" == "static" ]; then
-    echo -e "${BLUE}Please enter the folder path relative to the repository root (e.g., public):${NC}"
-    read folder_path
-
-    echo -e "${BLUE}Configuring Nginx for a static site...${NC}"
-    sudo -u deployer bash -c "cat > /var/www/${domain_name}.conf <<EOF
+# Step 12: Configure Nginx for SSL
+echo -e "${BLUE}Configuring Nginx for SSL...${NC}"
+sudo bash -c "cat > /etc/nginx/sites-available/${domain_name} <<EOF
 server {
     listen 80;
-    server_name ${domain_name} www.${domain_name};
+    server_name ${domain_name};
 
     location / {
-        root /var/www/$(basename $repo_url .git)/${folder_path};
-        index index.html;
-    }
-
-    listen 443 ssl;
-    ssl_certificate /var/www/${domain_name}.crt;
-    ssl_certificate_key /var/www/${domain_name}.key;
-}
-EOF"
-
-elif [ "$project_type" == "dynamic" ]; then
-    echo -e "${BLUE}Please enter the port your application runs on (e.g., 3000):${NC}"
-    read app_port
-
-    echo -e "${BLUE}Configuring Nginx for a dynamic site with reverse proxy...${NC}"
-    sudo -u deployer bash -c "cat > /var/www/${domain_name}.conf <<EOF
-server {
-    listen 80;
-    server_name ${domain_name} www.${domain_name};
-
-    location / {
-        proxy_pass http://localhost:${app_port};
+        proxy_pass http://localhost:3000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
+}
 
+server {
     listen 443 ssl;
+    server_name ${domain_name};
+
     ssl_certificate /var/www/${domain_name}.crt;
     ssl_certificate_key /var/www/${domain_name}.key;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
 }
 EOF"
 
+# Link and test Nginx configuration
+sudo ln -s /etc/nginx/sites-available/${domain_name} /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+echo -e "${GREEN}Nginx configured successfully for SSL.${NC}"
+
+# Step 13: Setup MySQL if Backend
+if [ "$project_category" == "backend" ]; then
+    if command -v mysql &>/dev/null; then
+        echo -e "${RED}MySQL is already installed. Skipping MySQL installation.${NC}"
+    else
+        echo -e "${BLUE}Installing MySQL...${NC}"
+        sudo apt update
+        sudo apt install -y mysql-server
+        echo -e "${GREEN}MySQL installed successfully.${NC}"
+    fi
+
+    # Set up MySQL database and user
+    echo -e "${BLUE}Please enter the MySQL root password:${NC}"
+    read -s root_password
+
+    echo -e "${BLUE}Please enter the new database name:${NC}"
+    read db_name
+
+    echo -e "${BLUE}Please enter the new MySQL username:${NC}"
+    read db_user
+
+    echo -e "${BLUE}Please enter the new MySQL user password:${NC}"
+    read -s db_password
+
+    echo -e "${BLUE}Creating MySQL database and user...${NC}"
+    mysql -u root -p$root_password -e "CREATE DATABASE $db_name;"
+    mysql -u root -p$root_password -e "CREATE USER '$db_user'@'localhost' IDENTIFIED BY '$db_password';"
+    mysql -u root -p$root_password -e "GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user'@'localhost';"
+    mysql -u root -p$root_password -e "FLUSH PRIVILEGES;"
+    echo -e "${GREEN}MySQL database and user created successfully.${NC}"
+
+    # Create backup script
+    backup_script="/usr/local/bin/mysql_backup.sh"
+
+    echo -e "${BLUE}Creating MySQL backup script...${NC}"
+    sudo bash -c "cat > $backup_script <<EOF
+#!/bin/bash
+
+# رنگ‌های متن برای نمایش بهتر
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# دریافت اطلاعات FTP
+echo -e \"\${BLUE}Please enter the FTP host:\${NC}\"
+read ftp_host
+
+echo -e \"\${BLUE}Please enter the FTP username:\${NC}\"
+read ftp_user
+
+echo -e \"\${BLUE}Please enter the FTP password:\${NC}\"
+read -s ftp_password
+
+echo -e \"\${BLUE}Please enter the FTP target directory (e.g., /backups/):\${NC}\"
+read ftp_directory
+
+# تاریخ فعلی برای نام فایل بک‌آپ
+backup_date=\$(date +%Y-%m-%d_%H-%M-%S)
+backup_file=\"/tmp/${db_name}_backup_\${backup_date}.sql\"
+
+# گرفتن بک‌آپ از دیتابیس
+echo -e \"\${BLUE}Creating MySQL backup...\${NC}\"
+mysqldump -u $db_user -p$db_password $db_name > \$backup_file
+
+if [ \$? -eq 0 ]; then
+    echo -e \"\${GREEN}Backup created successfully at \$backup_file.\${NC}\"
 else
-    echo -e "${RED}Invalid project type entered. Please run the script again and enter 'static' or 'dynamic'.${NC}"
+    echo -e \"\${RED}Failed to create backup. Please check MySQL credentials and database name.\${NC}\"
     exit 1
 fi
 
-# Step 15: Link the configuration file and restart Nginx
-echo -e "${BLUE}Linking the Nginx configuration and restarting the service...${NC}"
-sudo ln -s /var/www/${domain_name}.conf /etc/nginx/sites-available/${domain_name}.conf
-sudo ln -s /etc/nginx/sites-available/${domain_name}.conf /etc/nginx/sites-enabled/
+# انتقال فایل بک‌آپ به سرور FTP
+echo -e \"\${BLUE}Transferring backup to FTP server...\${NC}\"
+curl -T \$backup_file ftp://\$ftp_user:\$ftp_password@\$ftp_host\$ftp_directory --ftp-create-dirs
 
-sudo systemctl restart nginx
-
-# Verify Nginx configuration
-if sudo nginx -t; then
-    echo -e "${GREEN}Nginx is configured successfully and running.${NC}"
+if [ \$? -eq 0 ]; then
+    echo -e \"\${GREEN}Backup successfully transferred to FTP server.\${NC}\"
+    rm \$backup_file  # حذف فایل بک‌آپ بعد از انتقال موفقیت‌آمیز
 else
-    echo -e "${RED}Nginx configuration failed. Please check the configuration file.${NC}"
+    echo -e \"\${RED}Failed to transfer backup to FTP server. Please check FTP credentials and server availability.\${NC}\"
     exit 1
 fi
 
-echo -e "${GREEN}Nginx setup completed! Your site should be accessible at https://${domain_name}.${NC}"
+echo -e \"\${GREEN}Backup and transfer process completed successfully.\${NC}\"
+EOF"
+
+    # Set execute permissions for the backup script
+    sudo chmod +x $backup_script
+    echo -e "${GREEN}Backup script created and executable permissions set.${NC}"
+
+    # Add the backup script to cron for daily execution at 12:00 AM
+    echo -e "${BLUE}Adding backup script to cron...${NC}"
+    (sudo crontab -l 2>/dev/null; echo "0 0 * * * $backup_script") | sudo crontab -
+    echo -e "${GREEN}Backup script added to cron successfully.${NC}"
+else
+    echo -e "${GREEN}No additional setup required for Frontend project.${NC}"
+fi
+
+# Continue with any remaining setup tasks...
+# ...
+
+echo -e "${GREEN}Setup completed successfully!${NC}"
