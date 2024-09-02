@@ -19,7 +19,7 @@ else
     echo -e "${GREEN}User '$deploy_user' created and added to sudo group.${NC}"
 fi
 
-# Step 2: Generate SSH key
+# Step 2: Generate SSH key for deploy_user and root
 if [ -f "/home/$deploy_user/.ssh/id_rsa" ]; then
     echo -e "${GREEN}SSH key for '$deploy_user' already exists. Skipping SSH key generation.${NC}"
 else
@@ -27,17 +27,25 @@ else
     sudo -u $deploy_user ssh-keygen -t rsa -b 4096 -C "exp@exp.com" -N "" -f /home/$deploy_user/.ssh/id_rsa
     echo -e "${BLUE}Here is the SSH public key. Please add it to your GitLab account:${NC}"
     cat /home/$deploy_user/.ssh/id_rsa.pub
+fi
 
-    # Adding SSH key to authorized_keys
-    cat /home/$deploy_user/.ssh/id_rsa.pub | sudo tee -a /home/$deploy_user/.ssh/authorized_keys
-    sudo chmod 600 /home/$deploy_user/.ssh/authorized_keys
-    sudo chown $deploy_user:$deploy_user /home/$deploy_user/.ssh/authorized_keys
-    echo -e "${GREEN}SSH key added to authorized_keys successfully.${NC}"
+# Copy SSH key to root's .ssh directory
+if [ -f "/root/.ssh/id_rsa" ]; then
+    echo -e "${GREEN}SSH key for 'root' already exists. Skipping copying from deploy_user.${NC}"
+else
+    echo -e "${BLUE}Copying SSH key to root's .ssh directory...${NC}"
+    sudo mkdir -p /root/.ssh
+    sudo cp /home/$deploy_user/.ssh/id_rsa /root/.ssh/id_rsa
+    sudo cp /home/$deploy_user/.ssh/id_rsa.pub /root/.ssh/id_rsa.pub
+    sudo cat /home/$deploy_user/.ssh/authorized_keys | sudo tee -a /root/.ssh/authorized_keys
+    sudo chmod 600 /root/.ssh/authorized_keys
+    sudo chown root:root /root/.ssh/id_rsa /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+    echo -e "${GREEN}SSH key copied to root's .ssh directory successfully.${NC}"
 fi
 
 read -p "Press enter after you've added the SSH key to GitLab..."
 
-# Step 3: Clone the GitLab repository
+# Step 3: Clone the GitLab repository as root
 if [ -d "~/$project_name" ]; then
     echo -e "${GREEN}Repository already exists in ~/$project_name. Skipping clone.${NC}"
 else
@@ -164,5 +172,3 @@ else
         exit 1
     fi
 fi
-
-echo -e "${GREEN}Setup completed successfully.${NC}"
