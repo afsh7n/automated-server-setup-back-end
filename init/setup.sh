@@ -61,6 +61,9 @@ else
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Repository cloned successfully to /home/$deploy_user/$project_name.${NC}"
+        # Run git config command
+        sudo -u $deploy_user git config --global --add safe.directory /home/$deploy_user/$project_name
+        echo -e "${GREEN}Git config command executed successfully.${NC}"
     else
         echo -e "${RED}Failed to clone the repository. Please check the URL and SSH key.${NC}"
         exit 1
@@ -89,12 +92,10 @@ else
 fi
 
 # Step 6: Clean up .bash_logout file
-if [ -f "/home/$deploy_user/.bash_logout" ] && [ ! -s "/home/$deploy_user/.bash_logout" ]; then
-    echo -e "${GREEN}.bash_logout already cleaned. Skipping this step.${NC}"
-else
-    echo -e "${BLUE}Cleaning up .bash_logout to prevent environment preparation issues...${NC}"
-    sudo sh -c 'echo "" > /home/$deploy_user/.bash_logout'
-    echo -e "${GREEN}.bash_logout file has been cleaned up successfully.${NC}"
+if [ -f "/home/$deploy_user/.bash_logout" ]; then
+    echo -e "${BLUE}Removing .bash_logout to prevent environment preparation issues...${NC}"
+    sudo rm /home/$deploy_user/.bash_logout
+    echo -e "${GREEN}.bash_logout file has been removed successfully.${NC}"
 fi
 
 # Step 7: Install UFW and configure firewall rules
