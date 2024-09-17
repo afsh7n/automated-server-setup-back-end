@@ -46,16 +46,18 @@ fi
 read -p "Press enter after you've added the SSH key to GitLab..."
 
 # Step 3: Clone the GitLab repository as root
+# Define project_name before using it
+read -p "Please enter your GitLab repository URL: " gitlab_repo_url
+
+# Extract project name from the GitLab URL
+project_name=$(basename -s .git $gitlab_repo_url)
+
+# Check if the repository already exists
 if [ -d "/home/$deploy_user/$project_name" ]; then
     echo -e "${GREEN}Repository already exists in /home/$deploy_user/$project_name. Skipping clone.${NC}"
 else
-    read -p "Please enter your GitLab repository URL: " gitlab_repo_url
-
-    # Extract project name from the GitLab URL
-    project_name=$(basename -s .git $gitlab_repo_url)
-
     echo -e "${BLUE}Cloning the repository...${NC}"
-    git clone $gitlab_repo_url /home/$deploy_user/$project_name
+    sudo git clone $gitlab_repo_url /home/$deploy_user/$project_name
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Repository cloned successfully to /home/$deploy_user/$project_name.${NC}"
