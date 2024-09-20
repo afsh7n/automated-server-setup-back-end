@@ -1,75 +1,78 @@
 
-# DevOps Setup Script
+# Server Setup Automation Script
 
-This script automates the process of setting up a server for deployment, including setting up a deployer user, installing necessary software, configuring firewalls, and setting up an Nginx server with SSL for your project.
+This Bash script automates the process of setting up a Linux server for deployment. It includes user management, SSH key generation, repository cloning, Docker and Docker Compose installation, firewall configuration, and GitLab Runner setup. The script is designed to simplify the setup process for deploying applications on a new server.
+
+## Features
+
+- Creates a deploy user with sudo privileges.
+- Generates SSH keys for both the deploy user and root user.
+- Clones a GitLab repository and sets up the Git configuration.
+- Installs Docker and Docker Compose.
+- Configures UFW firewall rules for HTTP, HTTPS, and SSH access.
+- Changes the default SSH port for added security.
+- Installs and registers GitLab Runner for CI/CD integration.
 
 ## How to Use
 
-You can run the script directly from your terminal by using the following command:
+### Step 1: Run the Script
+
+To use the script, you can either download it directly or run it from a remote URL. Use the following command to run the script:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/afsh7n/emeax-desain-devops/main/setup.sh)
+bash <(curl -Ls https://your-script-url-here)
 ```
 
-## What Does This Script Do?
+### Step 2: Provide Input During Execution
 
-### 1. Create `deployer` User
-- Checks if a user named `deployer` exists. If not, it creates the user, adds them to the sudo group, and sets up SSH access.
+During script execution, you'll be prompted for the following inputs:
 
-### 2. Install Nginx
-- Installs Nginx if it is not already installed on the server.
+1. **Deploy User**: You can specify a custom username for the deploy user (default is `deployer`).
+2. **GitLab Repository URL**: You'll need to provide the SSH URL of your GitLab repository (e.g., `git@gitlab.com:yourusername/yourrepository.git`).
+3. **GitLab Runner Registration Token**: When setting up GitLab Runner, you'll be prompted to provide the registration token, which can be found in your GitLab project's settings.
 
-### 3. Install NVM and Node.js
-- Installs NVM (Node Version Manager) and the latest LTS version of Node.js for the `deployer` user.
+### Script Breakdown
 
-### 4. Clone Your Git Repository
-- Clones a Git repository from GitLab to `/var/www/`.
-- You will need to provide the repository URL during the script execution.
+#### 1. **User Creation**
+The script checks if the specified deploy user exists. If not, it creates the user with sudo privileges.
 
-### 5. Clean `.bash_logout`
-- Cleans the `.bash_logout` file for the `deployer` user to prevent environment preparation issues.
+#### 2. **SSH Key Generation**
+If SSH keys don't exist for the deploy user, the script generates them. You'll need to add the generated public key to your GitLab account to allow the server to clone private repositories.
 
-### 6. Install and Configure GitLab Runner
-- Installs GitLab Runner and sets it up to run as a service.
-- You will need to provide a GitLab Runner registration token during the script execution.
+#### 3. **Cloning the GitLab Repository**
+The script clones your specified GitLab repository into the `/home/deployer/` directory. It also configures the repository to be safe for Git operations.
 
-### 7. Install and Configure UFW (Uncomplicated Firewall)
-- Installs UFW and opens ports 80, 443, and 23232.
-- Changes the default SSH port from 22 to 23232 and restarts the SSH service.
+#### 4. **Docker Installation**
+The script checks if Docker is installed. If not, it installs Docker and adds the deploy user to the Docker group.
 
-### 8. Generate SSL Certificates
-- Prompts you for a domain name and generates a self-signed SSL certificate for that domain.
+#### 5. **Docker Compose Installation**
+The script checks if Docker Compose is installed. If not, it installs Docker Compose from the latest release.
 
-### 9. Configure Nginx
-- Configures Nginx based on the type of project (static or dynamic).
-- If static, you will need to provide the folder path relative to the repository root.
-- If dynamic, you will need to provide the port on which your application runs.
+#### 6. **UFW Firewall Configuration**
+The script installs and configures UFW (Uncomplicated Firewall) to allow traffic on HTTP (port 80), HTTPS (port 443), and a custom SSH port (23232).
 
-### 10. Start Nginx
-- Applies the Nginx configuration and restarts the Nginx service.
+#### 7. **SSH Port Change**
+For additional security, the script changes the default SSH port from `22` to `23232`.
 
-## Input Data Required
+#### 8. **GitLab Runner Installation and Configuration**
+If GitLab Runner is not installed, the script installs it and registers it with your GitLab project using the registration token. After registration, it ensures that the runner is properly running.
 
-- **Repository URL**: URL of the GitLab repository you wish to clone.
-- **GitLab Runner Registration Token**: Token to register the GitLab Runner with your GitLab instance.
-- **Domain Name**: The domain name for which you want to create the SSL certificate.
-- **Project Type**: Whether your project is static or dynamic.
-  - If static: The folder path where your static files are located.
-  - If dynamic: The port number on which your application is running.
+### Troubleshooting
 
-## Benefits of Using This Script
+- **Permission Issues**: If you run into permission issues during `git pull` or file access, ensure that the deploy user has the correct ownership of the project directory.
+  
+  ```bash
+  sudo chown -R deployer:deployer /home/deployer/your-repository
+  ```
 
-- **Automation**: Automates the entire server setup process, saving you time and reducing the potential for human error.
-- **Consistency**: Ensures that all servers are set up in a consistent manner, following best practices.
-- **Security**: Configures firewalls and changes the SSH port to enhance security.
-- **Flexibility**: Supports both static and dynamic project setups with Nginx.
+- **Firewall Configuration**: Ensure that your firewall rules are correctly applied, and check the status of UFW with:
 
-## Notes
+  ```bash
+  sudo ufw status
+  ```
 
-- This script is intended for use on a fresh server setup. Running it on a server with existing configurations may cause conflicts.
-- The script is interactive, meaning it will prompt you for the necessary information during execution.
+### Conclusion
 
-## Conclusion
+This script automates the essential setup tasks for deploying an application on a Linux server. By following the steps in this guide, you can easily configure your server with a deploy user, SSH keys, Docker, and GitLab Runner. If you encounter any issues, consult the logs or check the individual components (Docker, GitLab Runner, etc.).
 
-By using this script, you can quickly and efficiently set up a server for deployment, complete with a secure Nginx setup, GitLab CI/CD integration, and a deployer user for managing your deployments. This reduces the manual effort involved in server setup and ensures a standardized environment for your applications.
-
+For further support, refer to the project documentation or contact support.
