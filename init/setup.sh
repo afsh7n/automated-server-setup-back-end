@@ -64,6 +64,12 @@ else
         # Run git config command
         sudo -u $deploy_user git config --global --add safe.directory /home/$deploy_user/$project_name
         echo -e "${GREEN}Git config command executed successfully.${NC}"
+
+        # Fix repository permissions for deploy_user
+        echo -e "${BLUE}Fixing repository permissions...${NC}"
+        sudo chown -R $deploy_user:$deploy_user /home/$deploy_user/$project_name
+        sudo chmod -R u+rwX /home/$deploy_user/$project_name
+        echo -e "${GREEN}Permissions fixed successfully.${NC}"
     else
         echo -e "${RED}Failed to clone the repository. Please check the URL and SSH key.${NC}"
         exit 1
