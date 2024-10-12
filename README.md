@@ -20,7 +20,7 @@ This Bash script automates the process of setting up a Linux server for deployme
 To use the script, you can either download it directly or run it from a remote URL. Use the following command to run the script:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/afsh7n/emeax-desain-devops/main/init/setup.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/afsh7n/emeax-desain-devops/main/setup.sh)
 ```
 
 ### Step 2: Provide Input During Execution
