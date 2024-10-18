@@ -6,18 +6,14 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Summary variables
-SUCCESS_STEPS=()
-FAILED_STEPS=()
-
-function log_success() {
-    SUCCESS_STEPS+=("$1")
-    echo -e "${GREEN}$1${NC}"
+# Log functions for success and failure
+log_success() {
+    echo -e "${GREEN}[SUCCESS] $1${NC}"
 }
 
-function log_fail() {
-    FAILED_STEPS+=("$1")
-    echo -e "${RED}$1${NC}"
+log_fail() {
+    echo -e "${RED}[ERROR] $1${NC}"
+    exit 1
 }
 
 # Step 1: Create a new user
@@ -33,8 +29,7 @@ else
     if [ $? -eq 0 ]; then
         log_success "User '$deploy_user' created and added to sudo group."
     else
-        log_fail "Failed to create user '$deploy_user'. Exiting..."
-        exit 1
+        log_fail "Failed to create user '$deploy_user'."
     fi
 fi
 
@@ -63,7 +58,6 @@ else
         log_success "SSH key copied to root's .ssh directory successfully."
     else
         log_fail "Failed to copy SSH key to root."
-        exit 1
     fi
 fi
 
@@ -102,7 +96,6 @@ else
 
     else
         log_fail "Failed to clone the repository."
-        exit 1
     fi
 fi
 
@@ -118,7 +111,6 @@ else
         log_success "Docker installed successfully."
     else
         log_fail "Failed to install Docker."
-        exit 1
     fi
 fi
 
@@ -133,7 +125,6 @@ else
         log_success "Docker Compose installed successfully."
     else
         log_fail "Failed to install Docker Compose."
-        exit 1
     fi
 fi
 
@@ -158,7 +149,6 @@ else
         log_success "UFW installed and configured successfully."
     else
         log_fail "Failed to configure UFW."
-        exit 1
     fi
 fi
 
@@ -173,49 +163,111 @@ else
         log_success "SSH port changed to 23232 and service restarted."
     else
         log_fail "Failed to change SSH port."
-        exit 1
     fi
 fi
 
 # Step 9: Install and configure Netdata with basic authentication
-if command -v netdata &>/dev/null; then
-    log_success "Netdata is already installed. Skipping installation."
-else
-    echo -e "${BLUE}Installing Netdata...${NC}"
-    sudo apt update
-    sudo apt install -y netdata
-    sudo systemctl enable netdata
-    sudo systemctl start netdata
+echo -e "${BLUE}Starting Netdata installation and configuration...${NC}"
+
+# Step 9.1: Remove the old Netdata configuration file
+if [ -f /etc/netdata/netdata.conf ]; then
+    echo -e "${BLUE}Removing old Netdata configuration file...${NC}"
+    sudo rm /etc/netdata/netdata.conf
     if [ $? -eq 0 ]; then
-        log_success "Netdata installed successfully."
-
-        # Install apache2-utils for htpasswd command
-        echo -e "${BLUE}Installing apache2-utils for htpasswd...${NC}"
-        sudo apt install -y apache2-utils
-        if [ $? -eq 0 ]; then
-            log_success "apache2-utils installed successfully."
-        else
-            log_fail "Failed to install apache2-utils."
-            exit 1
-        fi
-
-        echo -e "${BLUE}Configuring Netdata with basic authentication...${NC}"
-        sudo htpasswd -c /etc/netdata/htpasswd emeax_admin <<< "WGc5WfwkgxXpkrf"
-        sudo sed -i '/\[web\]/a mode = multi-threaded\ndefault port = 19999\nauth mode = basic-auth\nauth file = /etc/netdata/htpasswd' /etc/netdata/netdata.conf
-        sudo systemctl restart netdata
-        if [ $? -eq 0 ]; then
-            log_success "Netdata configured with basic authentication successfully."
-        else
-            log_fail "Failed to configure Netdata authentication."
-            exit 1
-        fi
+        log_success "Old Netdata configuration file removed."
     else
-        log_fail "Failed to install Netdata."
-        exit 1
+        log_fail "Failed to remove the old configuration file."
     fi
+else
+    log_success "No existing configuration file found. Skipping removal."
 fi
 
+# Step 9.2: Create a new configuration file for Netdata
+echo -e "${BLUE}Creating a new configuration file...${NC}"
+sudo tee /etc/netdata/netdata.conf > /dev/null <<EOF
+[global]
+    run as user = netdata
+    bind socket to IP = 0.0.0.0
 
+[web]
+    mode = multi-threaded
+    default port = 19999
+    auth mode = basic-auth
+    auth file = /etc/netdata/htpasswd
+EOF
+
+if [ $? -eq 0 ]; then
+    log_success "New configuration file created."
+else
+    log_fail "Failed to create the new configuration file."
+fi
+
+# Step 9.3: Install apache2-utils if not already installed
+echo -e "${BLUE}Checking if apache2-utils is installed...${NC}"
+if ! dpkg -l | grep -q apache2-utils; then
+    echo -e "${BLUE}Installing apache2-utils for htpasswd...${NC}"
+    sudo apt install -y apache2-utils
+    if [ $? -eq 0 ]; then
+        log_success "apache2-utils installed successfully."
+    else
+        log_fail "Failed to install apache2-utils."
+    fi
+else
+    log_success "apache2-utils is already installed."
+fi
+
+# Step 9.4: Create or update the htpasswd file for basic authentication
+echo -e "${BLUE}Creating htpasswd file for basic authentication...${NC}"
+sudo htpasswd -c /etc/netdata/htpasswd emeax_admin <<EOF
+WGc5WfwkgxXpkrf
+EOF
+
+if [ $? -eq 0 ]; then
+    log_success "htpasswd file created successfully."
+else
+    log_fail "Failed to create htpasswd file."
+fi
+
+# Step 9.5: Set the correct permissions for the htpasswd file
+echo -e "${BLUE}Setting correct permissions for htpasswd file...${NC}"
+sudo chown netdata:netdata /etc/netdata/htpasswd
+sudo chmod 640 /etc/netdata/htpasswd
+
+if [ $? -eq 0 ]; then
+    log_success "Permissions for htpasswd file set successfully."
+else
+    log_fail "Failed to set permissions for htpasswd file."
+fi
+
+# Step 9.6: Restart Netdata to apply the new configuration
+echo -e "${BLUE}Restarting Netdata service...${NC}"
+sudo systemctl restart netdata
+
+if [ $? -eq 0 ]; then
+    log_success "Netdata service restarted successfully."
+else
+    log_fail "Failed to restart Netdata service."
+fi
+
+# Step 9.7: Check if Netdata is listening on the correct port (19999)
+echo -e "${BLUE}Checking if Netdata is listening on port 19999...${NC}"
+sudo ss -tuln | grep 19999
+
+if [ $? -eq 0 ]; then
+    log_success "Netdata is listening on port 19999."
+else
+    log_fail "Netdata is not listening on port 19999."
+fi
+
+# Step 9.8: Test authentication
+echo -e "${BLUE}Testing basic authentication with curl...${NC}"
+curl -I http://localhost:19999 | grep "401 Unauthorized"
+
+if [ $? -eq 0 ]; then
+    log_success "Basic authentication is working correctly."
+else
+    log_fail "Basic authentication is not working."
+fi
 
 # Step 10: Install and configure GitLab Runner
 if command -v gitlab-runner &>/dev/null; then
@@ -238,7 +290,6 @@ else
         log_success "GitLab Runner is running successfully."
     else
         log_fail "GitLab Runner failed to start. Please check the logs for more details."
-        exit 1
     fi
 
     echo -e "${BLUE}Please enter your GitLab Runner registration token:${NC}"
@@ -257,22 +308,8 @@ else
         log_success "GitLab Runner registered successfully."
     else
         log_fail "Failed to register GitLab Runner."
-        exit 1
     fi
     sudo systemctl restart gitlab-runner
 fi
 
-# Summary of steps
-echo -e "${BLUE}Summary of completed steps:${NC}"
-for step in "${SUCCESS_STEPS[@]}"; do
-    echo -e "${GREEN}[✓] $step${NC}"
-done
-
-if [ ${#FAILED_STEPS[@]} -ne 0 ]; then
-    echo -e "${RED}The following steps failed:${NC}"
-    for step in "${FAILED_STEPS[@]}"; do
-        echo -e "${RED}[✗] $step${NC}"
-    done
-else
-    echo -e "${GREEN}All steps completed successfully.${NC}"
-fi
+echo -e "${GREEN}All steps completed successfully!${NC}"
