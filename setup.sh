@@ -169,7 +169,20 @@ fi
 # Step 9: Install and configure Netdata with basic authentication
 echo -e "${BLUE}Starting Netdata installation and configuration...${NC}"
 
-# Step 9.1: Remove the old Netdata configuration file
+# Step 9.1: Ensure the Netdata configuration directory exists
+if [ ! -d /etc/netdata ]; then
+    echo -e "${BLUE}Creating Netdata configuration directory...${NC}"
+    sudo mkdir -p /etc/netdata
+    if [ $? -eq 0 ]; then
+        log_success "Netdata configuration directory created."
+    else
+        log_fail "Failed to create Netdata configuration directory."
+    fi
+else
+    log_success "Netdata configuration directory already exists. Skipping creation."
+fi
+
+# Step 9.2: Remove the old Netdata configuration file
 if [ -f /etc/netdata/netdata.conf ]; then
     echo -e "${BLUE}Removing old Netdata configuration file...${NC}"
     sudo rm /etc/netdata/netdata.conf
@@ -182,7 +195,7 @@ else
     log_success "No existing configuration file found. Skipping removal."
 fi
 
-# Step 9.2: Create a new configuration file for Netdata
+# Step 9.3: Create a new configuration file for Netdata
 echo -e "${BLUE}Creating a new configuration file...${NC}"
 sudo tee /etc/netdata/netdata.conf > /dev/null <<EOF
 [global]
@@ -202,7 +215,7 @@ else
     log_fail "Failed to create the new configuration file."
 fi
 
-# Step 9.3: Install apache2-utils if not already installed
+# Step 9.4: Install apache2-utils if not already installed
 echo -e "${BLUE}Checking if apache2-utils is installed...${NC}"
 if ! dpkg -l | grep -q apache2-utils; then
     echo -e "${BLUE}Installing apache2-utils for htpasswd...${NC}"
@@ -216,7 +229,7 @@ else
     log_success "apache2-utils is already installed."
 fi
 
-# Step 9.4: Create or update the htpasswd file for basic authentication
+# Step 9.5: Create or update the htpasswd file for basic authentication
 echo -e "${BLUE}Creating htpasswd file for basic authentication...${NC}"
 sudo htpasswd -c /etc/netdata/htpasswd emeax_admin <<EOF
 WGc5WfwkgxXpkrf
@@ -228,7 +241,7 @@ else
     log_fail "Failed to create htpasswd file."
 fi
 
-# Step 9.5: Set the correct permissions for the htpasswd file
+# Step 9.6: Set the correct permissions for the htpasswd file
 echo -e "${BLUE}Setting correct permissions for htpasswd file...${NC}"
 sudo chown netdata:netdata /etc/netdata/htpasswd
 sudo chmod 640 /etc/netdata/htpasswd
@@ -239,7 +252,7 @@ else
     log_fail "Failed to set permissions for htpasswd file."
 fi
 
-# Step 9.6: Restart Netdata to apply the new configuration
+# Step 9.7: Restart Netdata to apply the new configuration
 echo -e "${BLUE}Restarting Netdata service...${NC}"
 sudo systemctl restart netdata
 
@@ -249,7 +262,7 @@ else
     log_fail "Failed to restart Netdata service."
 fi
 
-# Step 9.7: Check if Netdata is listening on the correct port (19999)
+# Step 9.8: Check if Netdata is listening on the correct port (19999)
 echo -e "${BLUE}Checking if Netdata is listening on port 19999...${NC}"
 sudo ss -tuln | grep 19999
 
@@ -259,7 +272,7 @@ else
     log_fail "Netdata is not listening on port 19999."
 fi
 
-# Step 9.8: Test authentication
+# Step 9.9: Test authentication
 echo -e "${BLUE}Testing basic authentication with curl...${NC}"
 curl -I http://localhost:19999 | grep "401 Unauthorized"
 
@@ -268,6 +281,8 @@ if [ $? -eq 0 ]; then
 else
     log_fail "Basic authentication is not working."
 fi
+
+echo -e "${GREEN}Netdata installation and configuration completed successfully!${NC}"
 
 # Step 10: Install and configure GitLab Runner
 if command -v gitlab-runner &>/dev/null; then
