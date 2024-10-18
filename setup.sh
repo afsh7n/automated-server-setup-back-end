@@ -188,6 +188,17 @@ else
     sudo systemctl start netdata
     if [ $? -eq 0 ]; then
         log_success "Netdata installed successfully."
+
+        # Install apache2-utils for htpasswd command
+        echo -e "${BLUE}Installing apache2-utils for htpasswd...${NC}"
+        sudo apt install -y apache2-utils
+        if [ $? -eq 0 ]; then
+            log_success "apache2-utils installed successfully."
+        else
+            log_fail "Failed to install apache2-utils."
+            exit 1
+        fi
+
         echo -e "${BLUE}Configuring Netdata with basic authentication...${NC}"
         sudo htpasswd -c /etc/netdata/htpasswd emeax_admin <<< "WGc5WfwkgxXpkrf"
         sudo sed -i '/\[web\]/a mode = multi-threaded\ndefault port = 19999\nauth mode = basic-auth\nauth file = /etc/netdata/htpasswd' /etc/netdata/netdata.conf
@@ -203,6 +214,7 @@ else
         exit 1
     fi
 fi
+
 
 
 # Step 10: Install and configure GitLab Runner
