@@ -182,7 +182,10 @@ if command -v netdata &>/dev/null; then
     log_success "Netdata is already installed. Skipping installation."
 else
     echo -e "${BLUE}Installing Netdata...${NC}"
-    bash <(curl -Ss https://my-netdata.io/kickstart.sh)
+    sudo apt update
+    sudo apt install -y netdata
+    sudo systemctl enable netdata
+    sudo systemctl start netdata
     if [ $? -eq 0 ]; then
         log_success "Netdata installed successfully."
         echo -e "${BLUE}Configuring Netdata with basic authentication...${NC}"
@@ -200,6 +203,7 @@ else
         exit 1
     fi
 fi
+
 
 # Step 10: Install and configure GitLab Runner
 if command -v gitlab-runner &>/dev/null; then
